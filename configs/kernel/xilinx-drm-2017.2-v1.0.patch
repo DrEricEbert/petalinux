@@ -1,0 +1,40 @@
+diff --git a/drivers/gpu/drm/xilinx/xilinx_drm_drv.c b/drivers/gpu/drm/xilinx/xilinx_drm_drv.c
+old mode 100644
+new mode 100755
+index 9af14a91..bfd3748
+--- a/drivers/gpu/drm/xilinx/xilinx_drm_drv.c
++++ b/drivers/gpu/drm/xilinx/xilinx_drm_drv.c
+@@ -78,8 +78,8 @@ struct xilinx_video_format_desc {
+ static const struct xilinx_video_format_desc xilinx_video_formats[] = {
+ 	{ "yuv420", 16, 16, XILINX_VIDEO_FORMAT_YUV420, DRM_FORMAT_YUV420 },
+ 	{ "uvy422", 16, 16, XILINX_VIDEO_FORMAT_NONE, DRM_FORMAT_UYVY },
+-	{ "vuy422", 16, 16, XILINX_VIDEO_FORMAT_YUV422, DRM_FORMAT_VYUY },
+ 	{ "yuv422", 16, 16, XILINX_VIDEO_FORMAT_YUV422, DRM_FORMAT_YUYV },
++	{ "vuy422", 16, 16, XILINX_VIDEO_FORMAT_YUV422, DRM_FORMAT_VYUY },
+ 	{ "yvu422", 16, 16, XILINX_VIDEO_FORMAT_NONE, DRM_FORMAT_YVYU },
+ 	{ "yuv444", 24, 24, XILINX_VIDEO_FORMAT_YUV444, DRM_FORMAT_YUV444 },
+ 	{ "nv12", 16, 16, XILINX_VIDEO_FORMAT_NONE, DRM_FORMAT_NV12 },
+diff --git a/drivers/gpu/drm/xilinx/xilinx_drm_plane.c b/drivers/gpu/drm/xilinx/xilinx_drm_plane.c
+old mode 100644
+new mode 100755
+index 2646763..7a76325
+--- a/drivers/gpu/drm/xilinx/xilinx_drm_plane.c
++++ b/drivers/gpu/drm/xilinx/xilinx_drm_plane.c
+@@ -801,7 +801,7 @@ xilinx_drm_plane_create(struct xilinx_drm_plane_manager *manager,
+ 	}
+ 
+ 	/* probe color space converter */
+-	sub_node = of_parse_phandle(plane_node, "xlnx,rgb2yuv", i);
++	sub_node = of_parse_phandle(plane_node, "xlnx,rgb2yuv", 0);
+ 	if (sub_node) {
+ 		plane->rgb2yuv = xilinx_rgb2yuv_probe(dev, sub_node);
+ 		of_node_put(sub_node);
+@@ -819,7 +819,7 @@ xilinx_drm_plane_create(struct xilinx_drm_plane_manager *manager,
+ 	}
+ 
+ 	/* probe chroma resampler */
+-	sub_node = of_parse_phandle(plane_node, "xlnx,cresample", i);
++	sub_node = of_parse_phandle(plane_node, "xlnx,cresample", 0);
+ 	if (sub_node) {
+ 		plane->cresample = xilinx_cresample_probe(dev, sub_node);
+ 		of_node_put(sub_node);

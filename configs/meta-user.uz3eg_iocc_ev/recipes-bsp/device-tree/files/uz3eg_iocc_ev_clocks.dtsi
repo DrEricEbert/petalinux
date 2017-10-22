@@ -1,0 +1,14 @@
+
+&amba_pl {
+	axi_lite_clk: axi_lite_clk {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-frequency = <99999000>;
+	};
+	axi_stream_clk: axi_stream_clk {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-frequency = <149998000>;
+	};
+};
+

@@ -1,0 +1,47 @@
+
+&amba_pl {
+	lepton_iic: i2c@80300000 {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		compatible = "xlnx,xps-iic-2.00.a";
+		interrupt-parent = <&gic>;
+		interrupts = <0 93 4>;
+		reg = <0x0 0x80300000 0x0 0x10000>;
+		clocks = <&axi_lite_clk>;
+
+		/*
+		flir_lepton_iic@2A {
+			compatible = "flir,lepton-iic";
+			reg = <0x2A>;
+		}
+		*/
+	};
+
+	lepton_spi: axi_quad_spi@80310000 {
+		bits-per-word = <8>;
+		compatible = "xlnx,xps-spi-2.00.a";
+		fifo-size = <16>;
+		interrupt-parent = <&gic>;
+		interrupts = <0 94 1>;
+		num-cs = <0x1>;
+		reg = <0x0 0x80310000 0x0 0x10000>;
+		xlnx,num-ss-bits = <0x1>;
+		xlnx,spi-mode = <0>;
+
+		clock-names = "ref_clk", "pclk";
+		clocks = <&axi_lite_clk>, <&axi_lite_clk>;
+
+		spi-max-frequency = <0xF42400>; /* 16,000,000 Hz */
+
+		spi0_1 {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			compatible = "spidev";
+			reg = <0x0>;
+			spi-max-frequency = <0xF42400>; /* 16,000,000 Hz */
+			spi-cpha; /* ? */
+		};
+
+	};
+};
+

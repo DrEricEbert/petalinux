@@ -1,0 +1,186 @@
+#include <dt-bindings/media/xilinx-vip.h>
+
+&amba_pl {
+	cam1_iic: i2c@80100000 {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		compatible = "xlnx,xps-iic-2.00.a";
+		interrupt-parent = <&gic>;
+		interrupts = <0 91 4>;
+		reg = <0x0 0x80100000 0x0 0x10000>;
+		clocks = <&axi_lite_clk>;
+
+		cam1_pca9534_0: gpio@20 {
+			compatible = "nxp,pca9534";
+			reg = <0x20>;
+			gpio-controller;
+			#gpio-cells = <2>;
+		};
+	
+		cam1_mt9m114_0: mt9m114@48 {
+			compatible = "mt9m114";
+			reg = <0x48>;
+		
+			ports {
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				port@0 {
+					reg = <0>;
+					xlnx,video-format = <XVIP_VF_MONO_SENSOR>;
+					xlnx,cfa-pattern = "rggb";
+					xlnx,video-width = <8>;
+					cam1_mt9m114_0_source: endpoint {
+						remote-endpoint = <&cam1_cfa0_in>;
+					};
+				};
+			};
+		
+		
+		};
+	};
+
+	//TDnext_capture_1_tc_vdma_0: axivdma@80140000 {
+	TDnext_capture_1_tc_vdma_0: dma@80140000 {
+		compatible = "xlnx,axi-vdma-1.00.a";
+		reg = <0x0 0x80140000 0x0 0x10000>;
+		xlnx,flush-fsync = <1>;
+		xlnx,num-fstores = <1>;
+		xlnx,addrwidth = <0x20>;
+		#dma-cells = <1>;
+		clock-names = "s_axi_lite_aclk", "m_axi_mm2s_aclk", "m_axi_mm2s_aclk", "m_axi_s2mm_aclk", "m_axi_s2mm_aclk";
+		clocks = <&axi_lite_clk>, <&axi_stream_clk>, <&axi_stream_clk>, <&axi_stream_clk>, <&axi_stream_clk>;
+
+		dma-s2mmchannel@80140030 {
+			compatible = "xlnx,axi-vdma-s2mm-channel";
+			interrupt-parent = <&gic>;
+			interrupts = <0 89 4>;
+			xlnx,datawidth = <0x40>;
+		};
+	};
+
+	//TDnext_capture_1_tc_v_cfa_0: cfa@80110000 {
+	//	compatible = "xlnx,v-cfa-7.0";
+	TDnext_capture_1_tc_v_cfa_0: v_cfa@80110000 {
+		compatible = "xlnx,v-cfa-7.0";
+		reg = <0x0 0x80110000 0x0 0x10000>;
+		clocks = <&axi_stream_clk>;
+
+		ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			port@0 {
+				reg = <0>;
+				xlnx,video-format = <XVIP_VF_MONO_SENSOR>;
+				xlnx,cfa-pattern = "rggb";
+				xlnx,video-width = <8>;
+
+				cam1_cfa0_in: endpoint {
+					remote-endpoint = <&cam1_mt9m114_0_source>;
+				};
+			};
+			port@1 {
+				reg = <1>;
+				xlnx,video-format = <XVIP_VF_RBG>;
+				xlnx,video-width = <8>;
+
+				cam1_cfa0_out: endpoint {
+					remote-endpoint = <&cam1_rgb2yuv1_in>;
+				};
+			};
+		};
+	};
+
+	//TDnext_capture_1_tc_v_rgb2yuv_0: rgb2yuv@80120000 {
+		//compatible = "xlnx,v-rgb2yuv-7.1";
+	TDnext_capture_1_tc_v_rgb2ycrcb_0: v_rgb2ycrcb@80120000 {
+		compatible = "xlnx,v-rgb2ycrcb-7.1";
+		reg = <0x0 0x80120000 0x0 0x10000>;
+		clocks = <&axi_stream_clk>;
+
+		ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			port@0 {
+				reg = <0>;
+				xlnx,video-format = <XVIP_VF_RBG>;
+				xlnx,video-width = <8>;
+
+				cam1_rgb2yuv1_in: endpoint {
+					remote-endpoint = <&cam1_cfa0_out>;
+				};
+			};
+			port@1 {
+				reg = <1>;
+				xlnx,video-format = <XVIP_VF_YUV_444>;
+				xlnx,video-width = <8>;
+
+				cam1_rgb2yuv1_out: endpoint {
+					remote-endpoint = <&cam1_cresample1_in>;
+				};
+			};
+		};
+	};
+
+	//TDnext_capture_1_tc_cresample_0: cresample@80130000 {
+	TDnext_capture_1_tc_v_cresample_0: v_cresample@80130000 {
+		compatible = "xlnx,v-cresample-4.0";
+		reg = <0x0 0x80130000 0x0 0x10000>;
+		clocks = <&axi_stream_clk>;
+
+		ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			port@0 {
+				reg = <0>;
+				xlnx,video-format = <XVIP_VF_YUV_444>;
+				xlnx,video-width = <8>;
+
+				cam1_cresample1_in: endpoint {
+					remote-endpoint = <&cam1_rgb2yuv1_out>;
+				};
+			};
+			port@1 {
+				reg = <1>;
+				xlnx,video-format = <XVIP_VF_YUV_422>;
+				xlnx,video-width = <8>;
+
+				cam1_cresample1_out: endpoint {
+					remote-endpoint = <&cam1_vcap1_sink>;
+				};
+			};
+		};
+	};
+
+	cam1_video_cap_1 {
+		compatible = "xlnx,video";
+		dmas = <&TDnext_capture_1_tc_vdma_0 0>;
+		dma-names = "port0";
+
+		ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			port@0 {
+				reg = <0>;
+				direction = "input";
+				vpipe-names = "mt9m114";
+				cam1_vcap1_sink: endpoint {
+					remote-endpoint = <&cam1_cresample1_out>;
+				};
+			};
+		};
+	};
+};
+
+
+
+
+
+
+
+
+
