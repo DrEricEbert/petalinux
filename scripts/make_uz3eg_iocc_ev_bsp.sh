@@ -99,7 +99,7 @@ petalinux_project_configure_devicetree ()
     echo " "
     cp -rf ${START_FOLDER}/${PETALINUX_CONFIGS_FOLDER}/device-tree/system-user.dtsi.${HDL_PROJECT_NAME} \
     ${START_FOLDER}/${PETALINUX_PROJECTS_FOLDER}/${PETALINUX_PROJECT_NAME}/project-spec/meta-user/recipes-bsp/device-tree/files/system-user.dtsi
-    cp -rf ${START_FOLDER}/${PETALINUX_CONFIGS_FOLDER}/device-tree/xlnx.dtsi \
+    cp -rf ${START_FOLDER}/${PETALINUX_CONFIGS_FOLDER}/device-tree/xlnk.dtsi \
     ${START_FOLDER}/${PETALINUX_PROJECTS_FOLDER}/${PETALINUX_PROJECT_NAME}/project-spec/meta-user/recipes-bsp/device-tree/files/.
     cp -rf ${START_FOLDER}/${PETALINUX_CONFIGS_FOLDER}/device-tree/uz3eg_iocc_ev_clocks.dtsi \
     ${START_FOLDER}/${PETALINUX_PROJECTS_FOLDER}/${PETALINUX_PROJECT_NAME}/project-spec/meta-user/recipes-bsp/device-tree/files/.
@@ -113,7 +113,7 @@ petalinux_project_configure_devicetree ()
     # Overwrite the device tree config .bbappend file
     echo "SRC_URI_append =\"\ " > ${START_FOLDER}/${PETALINUX_PROJECTS_FOLDER}/${PETALINUX_PROJECT_NAME}/project-spec/meta-user/recipes-bsp/device-tree/device-tree-generation_%.bbappend
     echo "	file://system-user.dtsi \ " >> ${START_FOLDER}/${PETALINUX_PROJECTS_FOLDER}/${PETALINUX_PROJECT_NAME}/project-spec/meta-user/recipes-bsp/device-tree/device-tree-generation_%.bbappend
-    echo "	file://xlnx.dtsi \ " >> ${START_FOLDER}/${PETALINUX_PROJECTS_FOLDER}/${PETALINUX_PROJECT_NAME}/project-spec/meta-user/recipes-bsp/device-tree/device-tree-generation_%.bbappend
+    echo "	file://xlnk.dtsi \ " >> ${START_FOLDER}/${PETALINUX_PROJECTS_FOLDER}/${PETALINUX_PROJECT_NAME}/project-spec/meta-user/recipes-bsp/device-tree/device-tree-generation_%.bbappend
     echo "	file://uz3eg_iocc_ev_clocks.dtsi \ " >> ${START_FOLDER}/${PETALINUX_PROJECTS_FOLDER}/${PETALINUX_PROJECT_NAME}/project-spec/meta-user/recipes-bsp/device-tree/device-tree-generation_%.bbappend
     echo "	file://uz3eg_iocc_ev_flir_lepton.dtsi \ " >> ${START_FOLDER}/${PETALINUX_PROJECTS_FOLDER}/${PETALINUX_PROJECT_NAME}/project-spec/meta-user/recipes-bsp/device-tree/device-tree-generation_%.bbappend
     echo "	file://uz3eg_iocc_ev_tdm114_cam1.dtsi \ " >> ${START_FOLDER}/${PETALINUX_PROJECTS_FOLDER}/${PETALINUX_PROJECT_NAME}/project-spec/meta-user/recipes-bsp/device-tree/device-tree-generation_%.bbappend

@@ -99,13 +99,26 @@ petalinux_project_configure_devicetree ()
     echo " "
     cp -rf ${START_FOLDER}/${PETALINUX_CONFIGS_FOLDER}/device-tree/system-user.dtsi.${HDL_PROJECT_NAME} \
     ${START_FOLDER}/${PETALINUX_PROJECTS_FOLDER}/${PETALINUX_PROJECT_NAME}/project-spec/meta-user/recipes-bsp/device-tree/files/system-user.dtsi
+    cp -rf ${START_FOLDER}/${PETALINUX_CONFIGS_FOLDER}/device-tree/xlnk.dtsi \
+    ${START_FOLDER}/${PETALINUX_PROJECTS_FOLDER}/${PETALINUX_PROJECT_NAME}/project-spec/meta-user/recipes-bsp/device-tree/files/.
+
+    # Overwrite the device tree config .bbappend file
+    echo "SRC_URI_append =\"\ " > ${START_FOLDER}/${PETALINUX_PROJECTS_FOLDER}/${PETALINUX_PROJECT_NAME}/project-spec/meta-user/recipes-bsp/device-tree/device-tree-generation_%.bbappend
+    echo "	file://system-user.dtsi \ " >> ${START_FOLDER}/${PETALINUX_PROJECTS_FOLDER}/${PETALINUX_PROJECT_NAME}/project-spec/meta-user/recipes-bsp/device-tree/device-tree-generation_%.bbappend
+    echo "	file://xlnk.dtsi \ " >> ${START_FOLDER}/${PETALINUX_PROJECTS_FOLDER}/${PETALINUX_PROJECT_NAME}/project-spec/meta-user/recipes-bsp/device-tree/device-tree-generation_%.bbappend
+    echo "\"                                     " >> ${START_FOLDER}/${PETALINUX_PROJECTS_FOLDER}/${PETALINUX_PROJECT_NAME}/project-spec/meta-user/recipes-bsp/device-tree/device-tree-generation_%.bbappend
+
+    echo "" >> ${START_FOLDER}/${PETALINUX_PROJECTS_FOLDER}/${PETALINUX_PROJECT_NAME}/project-spec/meta-user/recipes-bsp/device-tree/device-tree-generation_%.bbappend
+    echo "FILESEXTRAPATHS_prepend := \"\${THISDIR}/files:\"" >> ${START_FOLDER}/${PETALINUX_PROJECTS_FOLDER}/${PETALINUX_PROJECT_NAME}/project-spec/meta-user/recipes-bsp/device-tree/device-tree-generation_%.bbappend
+
   else
     echo " "
     echo "WARNING: No board specific PetaLinux project configuration files found, "
     echo "PetaLinux project config is not touched for this build ..."
-echo "=== ${START_FOLDER}/${PETALINUX_CONFIGS_FOLDER}/device-tree/system-user.dtsi.${HDL_PROJECT_NAME} ==="
+    echo "=== ${START_FOLDER}/${PETALINUX_CONFIGS_FOLDER}/device-tree/system-user.dtsi.${HDL_PROJECT_NAME} ==="
     echo " "
   fi
+
 }
 
 # This function checks to see if any user configuration is available for the

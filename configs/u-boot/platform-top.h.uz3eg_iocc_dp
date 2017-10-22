@@ -52,5 +52,7 @@
 ""
 
 /* Allow large image.ub to be loaded correctly */
-//#undef CONFIG_SYS_BOOTMAPSZ
+#undef CONFIG_SYS_BOOTMAPSZ
+#define CONFIG_SYS_BOOTM_LEN 0xF000000
+#undef CONFIG_PREBOOT
 

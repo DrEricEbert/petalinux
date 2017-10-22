@@ -1,6 +1,7 @@
 /include/ "system-conf.dtsi"
 #include <dt-bindings/phy/phy.h>
 
+#include "xlnk.dtsi"
 #include "uz3eg_iocc_ev_clocks.dtsi"
 #include "uz3eg_iocc_ev_flir_lepton.dtsi"
 #include "uz3eg_iocc_ev_tdm114_cam1.dtsi"
