@@ -1,40 +1,720 @@
-diff --git a/drivers/gpu/drm/xilinx/xilinx_drm_drv.c b/drivers/gpu/drm/xilinx/xilinx_drm_drv.c
+diff --git a/drivers/media/platform/xilinx/xilinx-dma.c b/drivers/media/platform/xilinx/xilinx-dma.c
 old mode 100644
 new mode 100755
-index 9af14a91..bfd3748
---- a/drivers/gpu/drm/xilinx/xilinx_drm_drv.c
-+++ b/drivers/gpu/drm/xilinx/xilinx_drm_drv.c
-@@ -78,8 +78,8 @@ struct xilinx_video_format_desc {
- static const struct xilinx_video_format_desc xilinx_video_formats[] = {
- 	{ "yuv420", 16, 16, XILINX_VIDEO_FORMAT_YUV420, DRM_FORMAT_YUV420 },
- 	{ "uvy422", 16, 16, XILINX_VIDEO_FORMAT_NONE, DRM_FORMAT_UYVY },
--	{ "vuy422", 16, 16, XILINX_VIDEO_FORMAT_YUV422, DRM_FORMAT_VYUY },
- 	{ "yuv422", 16, 16, XILINX_VIDEO_FORMAT_YUV422, DRM_FORMAT_YUYV },
-+	{ "vuy422", 16, 16, XILINX_VIDEO_FORMAT_YUV422, DRM_FORMAT_VYUY },
- 	{ "yvu422", 16, 16, XILINX_VIDEO_FORMAT_NONE, DRM_FORMAT_YVYU },
- 	{ "yuv444", 24, 24, XILINX_VIDEO_FORMAT_YUV444, DRM_FORMAT_YUV444 },
- 	{ "nv12", 16, 16, XILINX_VIDEO_FORMAT_NONE, DRM_FORMAT_NV12 },
-diff --git a/drivers/gpu/drm/xilinx/xilinx_drm_plane.c b/drivers/gpu/drm/xilinx/xilinx_drm_plane.c
+index a6e4ea8..2047db0
+--- a/drivers/media/platform/xilinx/xilinx-dma.c
++++ b/drivers/media/platform/xilinx/xilinx-dma.c
+@@ -11,7 +11,7 @@
+  * it under the terms of the GNU General Public License version 2 as
+  * published by the Free Software Foundation.
+  */
+-
++#define DEBUG // testing
+ #include <linux/dma/xilinx_dma.h>
+ #include <linux/lcm.h>
+ #include <linux/list.h>
+@@ -24,11 +24,14 @@
+ #include <media/v4l2-ioctl.h>
+ #include <media/videobuf2-v4l2.h>
+ #include <media/videobuf2-dma-contig.h>
++#include <linux/xilinx-v4l2-controls.h>
++#include <linux/delay.h>
+ 
+ #include "xilinx-dma.h"
+ #include "xilinx-vip.h"
+ #include "xilinx-vipp.h"
+ 
++#define SET_PIPELINE_FORMAT
+ #define XVIP_DMA_DEF_FORMAT		V4L2_PIX_FMT_YUYV
+ #define XVIP_DMA_DEF_WIDTH		1920
+ #define XVIP_DMA_DEF_HEIGHT		1080
+@@ -39,6 +42,30 @@
+ #define XVIP_DMA_MIN_HEIGHT		1U
+ #define XVIP_DMA_MAX_HEIGHT		8191U
+ 
++#define NUM_INPUTS 1
++
++struct xvip_dma_frame_size{
++	u32 width;
++	u32 height;
++	int frame_rate;
++};
++
++// This is the supported format for the whole mt9m114 pipeline
++// TODO: 	Add more resolution support
++//			Move this array to proper location other than xilinx-dma.c
++static const struct xvip_dma_frame_size vpipe_mt9m114_supported_resolutions[] = {
++	{ 1280,	720, 30},
++	{ 640,	480, 30},
++	{ 800,	480, 30},
++	{ 320,	240, 30},
++};
++
++/* -----------------------------------------------------------------------------
++ * Forward declarations
++ */
++static int xvip_pipeline_get_format(struct xvip_dma *dma, struct v4l2_format *fmt);
++static struct media_pad *xvip_get_entity_sink(struct media_entity *entity, struct media_pad *source);
++
+ /* -----------------------------------------------------------------------------
+  * Helper functions
+  */
+@@ -75,12 +102,156 @@ static int xvip_dma_verify_format(struct xvip_dma *dma)
+ 
+ 	if (dma->fmtinfo->code != fmt.format.code ||
+ 	    dma->format.height != fmt.format.height ||
+-	    dma->format.width != fmt.format.width)
++	    dma->format.width != fmt.format.width) {
++		dev_dbg(dma->xdev->dev, "code        0x%x 0x%x\n", dma->fmtinfo->code, fmt.format.code);
++		dev_dbg(dma->xdev->dev, "height      0x%x 0x%x\n", dma->format.height, fmt.format.height);
++		dev_dbg(dma->xdev->dev, "width       0x%x 0x%x\n", dma->format.width, fmt.format.width);
++		dev_dbg(dma->xdev->dev, "colorspace  0x%x 0x%x\n", dma->format.colorspace, fmt.format.colorspace);
+ 		return -EINVAL;
++	}
++	return 0;
++}
++
++static int xvip_dma_find_frame_size(struct v4l2_pix_format *pix, int vptype)
++{
++	const struct xvip_dma_frame_size *fs;
++	const struct xvip_dma_frame_size *best_fs;
++	int best_dist = INT_MAX;
++	int i;
++	int dist;
++	const struct xvip_dma_frame_size *xvip_dma_supported_resolutions;
++	int len;
++
++	if(vptype == VPIPE_MT9M114){
++		xvip_dma_supported_resolutions = vpipe_mt9m114_supported_resolutions;
++		len = ARRAY_SIZE(vpipe_mt9m114_supported_resolutions);
++	}
++	else{
++		return -1;
++	}
++
++	best_fs = NULL;
++	for (i = 0; i < len; i++) {
++		fs = &xvip_dma_supported_resolutions[i];
++		dist = abs(fs->width - pix->width) + abs(fs->height - pix->height);
++
++		if((dist == 0)){
++			best_dist = dist;
++			best_fs = fs;
++			break;
++		}
++		else if (dist < best_dist) {
++			best_dist = dist;
++			best_fs = fs;
++		}
++	}
++
++	pix->width = best_fs->width;
++	pix->height = best_fs->height;
+ 
+ 	return 0;
+ }
+ 
++static int xvip_pipeline_set_format(struct xvip_dma *dma, struct v4l2_format *fmt)
++{
++	struct media_entity *entity;
++	struct media_pad *pad, *pad1;
++	struct v4l2_subdev *subdev;
++	int ret;
++	struct v4l2_subdev_format format;
++	struct v4l2_control ctrl;
++	int width, height;
++	int last = 0;
++
++	entity = &dma->video.entity;
++	pad = xvip_get_entity_sink(entity, NULL);
++	if(pad == NULL){
++		return -EPIPE;
++	}
++	dev_dbg(dma->xdev->dev, "Skip pad %s index %d\n", pad->entity->name, pad->index);
++
++	while (1) {
++		pad = media_entity_remote_pad(pad);
++		if (pad == NULL){
++			break;
++		}
++
++		if (!is_media_entity_v4l2_subdev(pad->entity))
++			break;
++
++		entity = pad->entity;
++		dev_dbg(dma->xdev->dev, "Current pad %s %d\n", entity->name, pad->index);
++		if (!(pad->flags & MEDIA_PAD_FL_SINK)){
++			dev_dbg(dma->xdev->dev, "Looking for sink pad\n");
++			pad1 = pad;
++			pad = xvip_get_entity_sink(entity, pad);
++			if (pad == NULL){
++				// That should be the last subdev in the pipelin, sensor
++				last = 1;
++				pad = pad1;
++			}
++
++			if (!(pad->flags & MEDIA_PAD_FL_SINK) && last == 0)
++				break;
++		}
++
++		dev_dbg(dma->xdev->dev, "Got sink pad %s index %d\n", entity->name, pad->index);
++		subdev = media_entity_to_v4l2_subdev(entity);
++		format.which = V4L2_SUBDEV_FORMAT_ACTIVE;
++		format.pad = pad->index;
++
++		ret = v4l2_subdev_call(subdev, pad, get_fmt, NULL, &format);
++		if (ret < 0){
++			dev_dbg(dma->xdev->dev, "get_fmt failed %d \n", ret);
++			return -EPIPE;
++		}
++
++		format.format.width = fmt->fmt.pix.width;
++		format.format.height = fmt->fmt.pix.height;
++		ret = v4l2_subdev_call(subdev, pad, set_fmt, NULL, &format);
++		if (ret < 0){
++			dev_dbg(dma->xdev->dev, "set_fmt failed %d \n", ret);
++			return -EPIPE;
++		}
++
++		if(format.format.height != fmt->fmt.pix.height){
++			dev_dbg(dma->xdev->dev, "set_fmt not satisfied (height) %d %d\n", format.format.height, fmt->fmt.pix.height);
++			return -EPIPE;
++		}
++
++		if(format.format.width != fmt->fmt.pix.width){
++			dev_dbg(dma->xdev->dev, "set_fmt not satisfied (width) %d %d\n", format.format.width, fmt->fmt.pix.width);
++			return -EPIPE;
++		}
++
++		if(last)
++			break;
++
++	}
++
++
++
++
++
++
++
++
++
++
++
++
++
++
++
++
++
++
++
++
++
++
++	return 0;
++}
+ /* -----------------------------------------------------------------------------
+  * Pipeline Stream Management
+  */
+@@ -313,6 +484,68 @@ static int xvip_pipeline_prepare(struct xvip_pipeline *pipe,
+ 	mutex_unlock(&pipe->lock);
+ 	return ret;
+ }
++static int xvip_pipeline_get_format(struct xvip_dma *dma, struct v4l2_format *fmt)
++{
++	struct media_entity *entity;
++	struct media_pad *pad;
++	struct v4l2_subdev *subdev;
++	int ret;
++	struct v4l2_subdev_format format;
++	int width, height;
++	int first = 1;
++
++	entity = &dma->video.entity;
++	pad = NULL;
++
++	dev_dbg(dma->xdev->dev, "%s\n", __func__);
++	while (1) {
++		pad = xvip_get_entity_sink(entity, pad);
++		if (pad == NULL)
++			break;
++		if (!(pad->flags & MEDIA_PAD_FL_SINK))
++			break;
++		dev_dbg(dma->xdev->dev, "Got sink pad %s\n", pad->entity->name);
++
++		pad = media_entity_remote_pad(pad);
++		if (pad == NULL || !is_media_entity_v4l2_subdev(pad->entity))
++			break;
++			
++		dev_dbg(dma->xdev->dev, "Got remote pad %s\n", pad->entity->name);
++		entity = pad->entity;
++		subdev = media_entity_to_v4l2_subdev(entity);
++
++		format.which = V4L2_SUBDEV_FORMAT_ACTIVE;
++		format.pad = pad->index;
++		ret = v4l2_subdev_call(subdev, pad, get_fmt, NULL, &format);
++		if (ret < 0){
++			dev_dbg(dma->xdev->dev, "Something wrong %d \n", ret);
++			return -EPIPE;
++		}
++
++		if(first){
++			first = 0;
++			width = format.format.width;
++			height = format.format.height;
++		}
++		else{
++			if(width != format.format.width){
++				return -EPIPE;
++			}
++			if(height != format.format.height){
++				return -EPIPE;
++			}
++		}
++
++		dev_dbg(dma->xdev->dev, "width %d height %d\n", format.format.width, format.format.height);
++
++	}
++
++	fmt->fmt.pix.width = width;
++	fmt->fmt.pix.height = height;
++
++
++	return 0;
++}
+ 
+ /* -----------------------------------------------------------------------------
+  * videobuf2 queue operations
+@@ -337,6 +570,8 @@ static void xvip_dma_complete(void *param)
+ 	struct xvip_dma_buffer *buf = param;
+ 	struct xvip_dma *dma = buf->dma;
+ 
++
++
+ 	spin_lock(&dma->queued_lock);
+ 	list_del(&buf->queue);
+ 	spin_unlock(&dma->queued_lock);
+@@ -556,11 +791,12 @@ static void xvip_dma_stop_streaming(struct vb2_queue *vq)
+ 
+ 	if (f->index > 0)
+ 		return -EINVAL;
+-
++	f->pixelformat = dma->fmt_desc[f->index].pixelformat;
++/*
+ 	f->pixelformat = dma->format.pixelformat;
+ 	strlcpy(f->description, dma->fmtinfo->description,
+ 		sizeof(f->description));
+-
++*/
+ 	return 0;
+ }
+ 
+@@ -577,9 +813,9 @@ static void xvip_dma_stop_streaming(struct vb2_queue *vq)
+ 
+ static void
+ __xvip_dma_try_format(struct xvip_dma *dma, struct v4l2_pix_format *pix,
+-		      const struct xvip_video_format **fmtinfo)
++		      struct xvip_video_format **fmtinfo)
+ {
+-	const struct xvip_video_format *info;
++	struct xvip_video_format *info;
+ 	unsigned int min_width;
+ 	unsigned int max_width;
+ 	unsigned int min_bpl;
+@@ -595,7 +831,13 @@ static void xvip_dma_stop_streaming(struct vb2_queue *vq)
+ 	if (IS_ERR(info))
+ 		info = xvip_get_format_by_fourcc(XVIP_DMA_DEF_FORMAT);
+ 
+-	pix->pixelformat = info->fourcc;
++	/////////
++	// Override parameters defined in xvip_video_formats[] array by devicetree entries
++	info->code = dma->mbus_format;
++	info->bpp = dma->dma_bpp;
++	/////////	
++
++	pix->pixelformat = info->fourcc; // This is the case that no match found. We need to update pixelformat with default value
+ 	pix->field = V4L2_FIELD_NONE;
+ 
+ 	/* The transfer alignment requirements are expressed in bytes. Compute
+@@ -611,6 +853,9 @@ static void xvip_dma_stop_streaming(struct vb2_queue *vq)
+ 	pix->height = clamp(pix->height, XVIP_DMA_MIN_HEIGHT,
+ 			    XVIP_DMA_MAX_HEIGHT);
+ 
++	//////// Set the best fit resolution
++	xvip_dma_find_frame_size(pix, dma->vptype); // TODO: take care return value
++	////////
+ 	/* Clamp the requested bytes per line value. If the maximum bytes per
+ 	 * line value is zero, the module doesn't support user configurable line
+ 	 * sizes. Override the requested value with the minimum in that case.
+@@ -651,9 +896,69 @@ static void xvip_dma_stop_streaming(struct vb2_queue *vq)
+ 	dma->format = format->fmt.pix;
+ 	dma->fmtinfo = info;
+ 
++	#ifdef SET_PIPELINE_FORMAT
++	///////////////
++	// Experimental:
++	// Set the whole pipeline resolution
++	// Note: According to V4L2 spec, it's the responsibility of user app to make sure pipeline format
++	// is consistent for all subdevices
++	xvip_pipeline_set_format(dma, format);
++	///////////////
++	#endif
++
++	return 0;
++}
++
++static int vidioc_g_input(struct file *file, void *priv, unsigned int *i)
++{
++	struct v4l2_fh *vfh = file->private_data;
++	struct xvip_dma *dma = to_xvip_dma(vfh->vdev);
++
++	*i = dma->input;
++	return 0;
++}
++
++static int vidioc_s_input(struct file *file, void *priv, unsigned int i)
++{
++	struct v4l2_fh *vfh = file->private_data;
++	struct xvip_dma *dma = to_xvip_dma(vfh->vdev);
++
++	if (i >= NUM_INPUTS)
++		return -EINVAL;
++
++	if (i == dma->input)
++		return 0;
++
++	dma->input = i;
++	return 0;
++}
++
++static int vidioc_enum_input(struct file *file, void *priv,
++				struct v4l2_input *inp)
++{
++	if (inp->index >= NUM_INPUTS)
++		return -EINVAL;
++
++	inp->type = V4L2_INPUT_TYPE_CAMERA;
++	sprintf(inp->name, "Camera %u", inp->index);
+ 	return 0;
+ }
+ 
++static int vidioc_queryctrl(struct file *file, void *fh,
++		struct v4l2_queryctrl *ctrl)
++{
++	int ret = 0;
++	switch (ctrl->id) {
++		// TO DO: Add necessary controls here
++
++		default:
++			ctrl->name[0] = '\0';
++			ret = -EINVAL;
++	}
++
++	return ret;
++}
++
+ static const struct v4l2_ioctl_ops xvip_dma_ioctl_ops = {
+ 	.vidioc_querycap		= xvip_dma_querycap,
+ 	.vidioc_enum_fmt_vid_cap	= xvip_dma_enum_format,
+@@ -671,6 +976,10 @@ static void xvip_dma_stop_streaming(struct vb2_queue *vq)
+ 	.vidioc_expbuf			= vb2_ioctl_expbuf,
+ 	.vidioc_streamon		= vb2_ioctl_streamon,
+ 	.vidioc_streamoff		= vb2_ioctl_streamoff,
++	.vidioc_g_input       	= vidioc_g_input,
++	.vidioc_s_input      	= vidioc_s_input,
++	.vidioc_enum_input    	= vidioc_enum_input,
++	.vidioc_queryctrl    	= vidioc_queryctrl,
+ };
+ 
+ /* -----------------------------------------------------------------------------
+@@ -693,7 +1002,7 @@ static void xvip_dma_stop_streaming(struct vb2_queue *vq)
+ int xvip_dma_init(struct xvip_composite_device *xdev, struct xvip_dma *dma,
+ 		  enum v4l2_buf_type type, unsigned int port)
+ {
+-	char name[16];
++	char name[32];
+ 	int ret;
+ 
+ 	dma->xdev = xdev;
+@@ -711,7 +1020,12 @@ int xvip_dma_init(struct xvip_composite_device *xdev, struct xvip_dma *dma,
+ 	dma->format.height = XVIP_DMA_DEF_HEIGHT;
+ 	dma->format.bytesperline = dma->format.width * dma->fmtinfo->bpp;
+ 	dma->format.sizeimage = dma->format.bytesperline * dma->format.height;
+-
++	// Try to fullfill VIDIOC_ENUM_FMT in xvip_dma_enum_format()
++	// Must syn up with content in array xvip_video_formats[] in file xilinx-vip.c
++	// TODO: Implement in better way
++	dma->fmt_desc[0].pixelformat = V4L2_PIX_FMT_YUYV;
++	dma->fmt_desc_num = 1; // 1 valid format only
++	////////////////////
+ 	/* Initialize the media entity... */
+ 	dma->pad.flags = type == V4L2_BUF_TYPE_VIDEO_CAPTURE
+ 		       ? MEDIA_PAD_FL_SINK : MEDIA_PAD_FL_SOURCE;
+diff --git a/drivers/media/platform/xilinx/xilinx-dma.h b/drivers/media/platform/xilinx/xilinx-dma.h
 old mode 100644
 new mode 100755
-index 2646763..7a76325
---- a/drivers/gpu/drm/xilinx/xilinx_drm_plane.c
-+++ b/drivers/gpu/drm/xilinx/xilinx_drm_plane.c
-@@ -801,7 +801,7 @@ xilinx_drm_plane_create(struct xilinx_drm_plane_manager *manager,
- 	}
+index e95d136..8b85c05
+--- a/drivers/media/platform/xilinx/xilinx-dma.h
++++ b/drivers/media/platform/xilinx/xilinx-dma.h
+@@ -28,6 +28,10 @@
+ struct xvip_composite_device;
+ struct xvip_video_format;
  
- 	/* probe color space converter */
--	sub_node = of_parse_phandle(plane_node, "xlnx,rgb2yuv", i);
-+	sub_node = of_parse_phandle(plane_node, "xlnx,rgb2yuv", 0);
- 	if (sub_node) {
- 		plane->rgb2yuv = xilinx_rgb2yuv_probe(dev, sub_node);
- 		of_node_put(sub_node);
-@@ -819,7 +819,7 @@ xilinx_drm_plane_create(struct xilinx_drm_plane_manager *manager,
- 	}
++enum {
++	VPIPE_MT9M114,
++	VPIPE_GENERIC
++};
+ /**
+  * struct xvip_pipeline - Xilinx Video IP pipeline structure
+  * @pipe: media pipeline
+@@ -73,6 +77,7 @@ static inline struct xvip_pipeline *to_xvip_pipeline(struct media_entity *e)
+  * @xt: dma interleaved template for dma configuration
+  * @sgl: data chunk structure for dma_interleaved_template
+  */
++#define MAX_FMT_DESC 32
+ struct xvip_dma {
+ 	struct list_head list;
+ 	struct video_device video;
+@@ -92,6 +97,14 @@ struct xvip_dma {
+ 	struct list_head queued_bufs;
+ 	spinlock_t queued_lock;
  
- 	/* probe chroma resampler */
--	sub_node = of_parse_phandle(plane_node, "xlnx,cresample", i);
-+	sub_node = of_parse_phandle(plane_node, "xlnx,cresample", 0);
- 	if (sub_node) {
- 		plane->cresample = xilinx_cresample_probe(dev, sub_node);
- 		of_node_put(sub_node);
++	//////// Dirty hack: Capture pipeline //////////
++	int input;
++	int vptype;
++	unsigned int mbus_format;
++	unsigned int dma_bpp;
++	struct v4l2_fmtdesc fmt_desc[MAX_FMT_DESC]; 
++	int fmt_desc_num;
++	////////
+ 	struct dma_chan *dma;
+ 	unsigned int align;
+ 	struct dma_interleaved_template xt;
+diff --git a/drivers/media/platform/xilinx/xilinx-vip.c b/drivers/media/platform/xilinx/xilinx-vip.c
+old mode 100644
+new mode 100755
+index d306f44..14f51cc
+--- a/drivers/media/platform/xilinx/xilinx-vip.c
++++ b/drivers/media/platform/xilinx/xilinx-vip.c
+@@ -26,23 +26,15 @@
+  * Helper functions
+  */
+ 
+-static const struct xvip_video_format xvip_video_formats[] = {
+-	{ XVIP_VF_YUV_422, 8, NULL, MEDIA_BUS_FMT_UYVY8_1X16,
+-	  2, V4L2_PIX_FMT_YUYV, "4:2:2, packed, YUYV" },
+-	{ XVIP_VF_YUV_444, 8, NULL, MEDIA_BUS_FMT_VUY8_1X24,
+-	  3, V4L2_PIX_FMT_YUV444, "4:4:4, packed, YUYV" },
+-	{ XVIP_VF_RBG, 8, NULL, MEDIA_BUS_FMT_RBG888_1X24,
+-	  3, V4L2_PIX_FMT_RGB24, "24-bit RGB" },
+-	{ XVIP_VF_MONO_SENSOR, 8, "mono", MEDIA_BUS_FMT_Y8_1X8,
+-	  1, V4L2_PIX_FMT_GREY, "Greyscale 8-bit" },
+-	{ XVIP_VF_MONO_SENSOR, 8, "rggb", MEDIA_BUS_FMT_SRGGB8_1X8,
+-	  1, V4L2_PIX_FMT_SGRBG8, "Bayer 8-bit RGGB" },
+-	{ XVIP_VF_MONO_SENSOR, 8, "grbg", MEDIA_BUS_FMT_SGRBG8_1X8,
+-	  1, V4L2_PIX_FMT_SGRBG8, "Bayer 8-bit GRBG" },
+-	{ XVIP_VF_MONO_SENSOR, 8, "gbrg", MEDIA_BUS_FMT_SGBRG8_1X8,
+-	  1, V4L2_PIX_FMT_SGBRG8, "Bayer 8-bit GBRG" },
+-	{ XVIP_VF_MONO_SENSOR, 8, "bggr", MEDIA_BUS_FMT_SBGGR8_1X8,
+-	  1, V4L2_PIX_FMT_SBGGR8, "Bayer 8-bit BGGR" },
++struct xvip_video_format xvip_video_formats[] = {
++	{ XVIP_VF_YUV_422, 8, NULL, MEDIA_BUS_FMT_UYVY8_1X16, 2, V4L2_PIX_FMT_YUYV, "4:2:2, packed, YUYV" },
++	{ XVIP_VF_YUV_444, 8, NULL, MEDIA_BUS_FMT_VUY8_1X24, 3, V4L2_PIX_FMT_YUV444, "4:4:4, packed, YUYV" },
++	{ XVIP_VF_RBG, 8, NULL, MEDIA_BUS_FMT_RBG888_1X24, 3, V4L2_PIX_FMT_RGB24, "24-bit RGB" },
++	{ XVIP_VF_MONO_SENSOR, 8, "mono", MEDIA_BUS_FMT_Y8_1X8, 1, V4L2_PIX_FMT_GREY, "Greyscale 8-bit" },
++	{ XVIP_VF_MONO_SENSOR, 8, "rggb", MEDIA_BUS_FMT_SRGGB8_1X8, 1, V4L2_PIX_FMT_SRGGB8, "Bayer 8-bit RGGB" },
++	{ XVIP_VF_MONO_SENSOR, 8, "grbg", MEDIA_BUS_FMT_SGRBG8_1X8, 1, V4L2_PIX_FMT_SGRBG8, "Bayer 8-bit GRBG" },
++	{ XVIP_VF_MONO_SENSOR, 8, "gbrg", MEDIA_BUS_FMT_SGBRG8_1X8, 1, V4L2_PIX_FMT_SGBRG8, "Bayer 8-bit GBRG" },
++	{ XVIP_VF_MONO_SENSOR, 8, "bggr", MEDIA_BUS_FMT_SBGGR8_1X8, 1, V4L2_PIX_FMT_SBGGR8, "Bayer 8-bit BGGR" },
+ };
+ 
+ /**
+@@ -53,7 +45,7 @@
+  * given V4L2 media bus format @code, or ERR_PTR if no corresponding format can
+  * be found.
+  */
+-const struct xvip_video_format *xvip_get_format_by_code(unsigned int code)
++struct xvip_video_format *xvip_get_format_by_code(unsigned int code)
+ {
+ 	unsigned int i;
+ 
+@@ -76,13 +68,13 @@ const struct xvip_video_format *xvip_get_format_by_code(unsigned int code)
+  * given V4L2 format @fourcc, or ERR_PTR if no corresponding format can be
+  * found.
+  */
+-const struct xvip_video_format *xvip_get_format_by_fourcc(u32 fourcc)
++struct xvip_video_format *xvip_get_format_by_fourcc(u32 fourcc)
+ {
+ 	unsigned int i;
+ 
+ 	for (i = 0; i < ARRAY_SIZE(xvip_video_formats); ++i) {
+-		const struct xvip_video_format *format = &xvip_video_formats[i];
+-
++		struct xvip_video_format *format = &xvip_video_formats[i];
++		printk("%s: i = %d format->fourcc 0x%x fourcc 0x%x\n", __func__, i, format->fourcc, fourcc); // testing
+ 		if (format->fourcc == fourcc)
+ 			return format;
+ 	}
+@@ -102,7 +94,7 @@ const struct xvip_video_format *xvip_get_format_by_fourcc(u32 fourcc)
+  * Return: a pointer to the format information structure corresponding to the
+  * format name and width, or ERR_PTR if no corresponding format can be found.
+  */
+-const struct xvip_video_format *xvip_of_get_format(struct device_node *node)
++struct xvip_video_format *xvip_of_get_format(struct device_node *node)
+ {
+ 	const char *pattern = "mono";
+ 	unsigned int vf_code;
+@@ -122,7 +114,7 @@ const struct xvip_video_format *xvip_of_get_format(struct device_node *node)
+ 		of_property_read_string(node, "xlnx,cfa-pattern", &pattern);
+ 
+ 	for (i = 0; i < ARRAY_SIZE(xvip_video_formats); ++i) {
+-		const struct xvip_video_format *format = &xvip_video_formats[i];
++		struct xvip_video_format *format = &xvip_video_formats[i];
+ 
+ 		if (format->vf_code != vf_code || format->width != width)
+ 			continue;
+diff --git a/drivers/media/platform/xilinx/xilinx-vip.h b/drivers/media/platform/xilinx/xilinx-vip.h
+old mode 100644
+new mode 100755
+index 42fee20..b47ace5
+--- a/drivers/media/platform/xilinx/xilinx-vip.h
++++ b/drivers/media/platform/xilinx/xilinx-vip.h
+@@ -123,9 +123,9 @@ struct xvip_video_format {
+ 	const char *description;
+ };
+ 
+-const struct xvip_video_format *xvip_get_format_by_code(unsigned int code);
+-const struct xvip_video_format *xvip_get_format_by_fourcc(u32 fourcc);
+-const struct xvip_video_format *xvip_of_get_format(struct device_node *node);
++struct xvip_video_format *xvip_get_format_by_code(unsigned int code);
++struct xvip_video_format *xvip_get_format_by_fourcc(u32 fourcc);
++struct xvip_video_format *xvip_of_get_format(struct device_node *node);
+ void xvip_set_format_size(struct v4l2_mbus_framefmt *format,
+ 			  const struct v4l2_subdev_format *fmt);
+ int xvip_enum_mbus_code(struct v4l2_subdev *subdev,
+diff --git a/drivers/media/platform/xilinx/xilinx-vipp.c b/drivers/media/platform/xilinx/xilinx-vipp.c
+old mode 100644
+new mode 100755
+index feb3b2f..9fe24c2
+--- a/drivers/media/platform/xilinx/xilinx-vipp.c
++++ b/drivers/media/platform/xilinx/xilinx-vipp.c
+@@ -11,7 +11,7 @@
+  * it under the terms of the GNU General Public License version 2 as
+  * published by the Free Software Foundation.
+  */
+-
++#define DEBUG // testing
+ #include <linux/list.h>
+ #include <linux/module.h>
+ #include <linux/of.h>
+@@ -76,22 +76,23 @@ static int xvip_graph_build_one(struct xvip_composite_device *xdev,
+ 	struct xvip_graph_entity *ent;
+ 	struct v4l2_of_link link;
+ 	struct device_node *ep = NULL;
+-	struct device_node *next;
++	//struct device_node *next;
+ 	int ret = 0;
+ 
+ 	dev_dbg(xdev->dev, "creating links for entity %s\n", local->name);
+ 
+ 	while (1) {
++
+ 		/* Get the next endpoint and parse its link. */
+-		next = of_graph_get_next_endpoint(entity->node, ep);
+-		if (next == NULL)
++		ep = of_graph_get_next_endpoint(entity->node, ep);
++		if (ep == NULL)
+ 			break;
+ 
+-		of_node_put(ep);
+-		ep = next;
++		//of_node_put(ep);
++		//ep = next;
+ 
+ 		dev_dbg(xdev->dev, "processing endpoint %s\n", ep->full_name);
+-
++	
+ 		ret = v4l2_of_parse_link(ep, &link);
+ 		if (ret < 0) {
+ 			dev_err(xdev->dev, "failed to parse link for %s\n",
+@@ -167,7 +168,7 @@ static int xvip_graph_build_one(struct xvip_composite_device *xdev,
+ 			break;
+ 		}
+ 	}
+-
++	
+ 	of_node_put(ep);
+ 	return ret;
+ }
+@@ -196,7 +197,7 @@ static int xvip_graph_build_dma(struct xvip_composite_device *xdev)
+ 	struct xvip_graph_entity *ent;
+ 	struct v4l2_of_link link;
+ 	struct device_node *ep = NULL;
+-	struct device_node *next;
++	//struct device_node *next;
+ 	struct xvip_dma *dma;
+ 	int ret = 0;
+ 
+@@ -204,12 +205,12 @@ static int xvip_graph_build_dma(struct xvip_composite_device *xdev)
+ 
+ 	while (1) {
+ 		/* Get the next endpoint and parse its link. */
+-		next = of_graph_get_next_endpoint(node, ep);
+-		if (next == NULL)
++		ep = of_graph_get_next_endpoint(node, ep);
++		if (ep == NULL)
+ 			break;
+ 
+-		of_node_put(ep);
+-		ep = next;
++		//of_node_put(ep);
++		//ep = next;
+ 
+ 		dev_dbg(xdev->dev, "processing endpoint %s\n", ep->full_name);
+ 
+@@ -425,7 +426,11 @@ static int xvip_graph_dma_init_one(struct xvip_composite_device *xdev,
+ 	const char *direction;
+ 	unsigned int index;
+ 	int ret;
+-
++	const char *vpname;
++	int vptype;
++	unsigned int mbus_format;
++	unsigned int dma_bpp;	
++	
+ 	ret = of_property_read_string(node, "direction", &direction);
+ 	if (ret < 0)
+ 		return ret;
+@@ -439,10 +444,31 @@ static int xvip_graph_dma_init_one(struct xvip_composite_device *xdev,
+ 
+ 	of_property_read_u32(node, "reg", &index);
+ 
++	// More dts entries added
++	ret = of_property_read_string(node, "vpipe-names", &vpname);
++	if (ret == 0) {
++		if (strcmp(vpname, "mt9m114") == 0){
++			vptype = VPIPE_MT9M114;
++		}
++		else {
++			vptype = VPIPE_GENERIC;
++		}	
++	}
++	else{
++		vptype = VPIPE_GENERIC;
++	}
++
++	of_property_read_u32(node, "mbus-format", &mbus_format);
++	of_property_read_u32(node, "dma-bpp", &dma_bpp);
++	printk("%s: mbus-format 0x%x dma-bpp 0x%x\n", __func__, mbus_format, dma_bpp);
++	///
+ 	dma = devm_kzalloc(xdev->dev, sizeof(*dma), GFP_KERNEL);
+ 	if (dma == NULL)
+ 		return -ENOMEM;
+ 
++	dma->vptype = vptype;
++	dma->mbus_format = mbus_format;
++	dma->dma_bpp = dma_bpp;
+ 	ret = xvip_dma_init(xdev, dma, type, index);
+ 	if (ret < 0) {
+ 		dev_err(xdev->dev, "%s initialization failed\n",

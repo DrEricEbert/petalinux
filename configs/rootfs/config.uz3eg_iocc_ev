@@ -2228,12 +2228,12 @@ CONFIG_libmali-xlnx-dev=y
 #
 # opencv 
 #
-# CONFIG_opencv is not set
+CONFIG_opencv=y
 # CONFIG_opencv-dbg is not set
-# CONFIG_opencv-apps is not set
-# CONFIG_opencv-dev is not set
-# CONFIG_python-opencv is not set
-# CONFIG_opencv-samples is not set
+CONFIG_opencv-apps is not set
+CONFIG_opencv-dev=y
+CONFIG_python-opencv=y
+CONFIG_opencv-samples=y
 # CONFIG_opencv-samples-dbg is not set
 
 #
@@ -2950,8 +2950,8 @@ CONFIG_packagegroup-core-ssh-dropbear=y
 #
 # packagegroup-petalinux-opencv 
 #
-# CONFIG_packagegroup-petalinux-opencv is not set
-# CONFIG_packagegroup-petalinux-opencv-dev is not set
+CONFIG_packagegroup-petalinux-opencv=y
+CONFIG_packagegroup-petalinux-opencv-dev=y
 # CONFIG_packagegroup-petalinux-opencv-dbg is not set
 
 #
