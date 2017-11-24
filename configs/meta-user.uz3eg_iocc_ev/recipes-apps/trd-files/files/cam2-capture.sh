@@ -7,6 +7,6 @@
 
 
 # Test mt9m114
-#v4l2-capture -w 1280 -h 720 -m 0 -s 1 -d /dev/video1 -o t -c 20
-v4l2-capture -w 1280 -h 720 -m 1 -s 1 -d /dev/video1 -o t -c 1
+#v4l2-capture -w 1280 -h 720 -m 0 -s 0 -d /dev/video3 -o cam2_ -c 20
+v4l2-capture -w 1280 -h 720 -m 0 -s 0 -d /dev/video3 -o cam2_ -c 1
 

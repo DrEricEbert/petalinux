@@ -574,8 +574,8 @@ static int device_init(struct cap_dev *dev)
 		#ifndef NO_DEBUG
 		printf("YUYV mode\n");
 		#endif
-		//fmt.fmt.pix.pixelformat = V4L2_PIX_FMT_YUYV;
-		fmt.fmt.pix.pixelformat = V4L2_PIX_FMT_SRGGB8;
+		fmt.fmt.pix.pixelformat = V4L2_PIX_FMT_YUYV;
+		//fmt.fmt.pix.pixelformat = V4L2_PIX_FMT_SRGGB8;
 	}
 	else{
 		printf("MJPEG mode\n");
