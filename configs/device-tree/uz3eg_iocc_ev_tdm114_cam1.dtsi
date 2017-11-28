@@ -40,27 +40,18 @@
 		};
 	};
 
-	//TDnext_capture_1_tc_vdma_0: axivdma@80140000 {
-	TDnext_capture_1_tc_vdma_0: dma@80140000 {
-		compatible = "xlnx,axi-vdma-1.00.a";
+	TDnext_capture_1_tc_frmbuf_wr_0: v_frmbuf_wr@80140000 {
+	        #dma-cells = <1>;
+	        compatible = "xlnx,axi-frmbuf-wr-v2";
+	        interrupt-parent = <&gic>;
+		interrupts = <0 89 4>;
+		reset-gpios = <&gpio 78 1>;
 		reg = <0x0 0x80140000 0x0 0x10000>;
-		xlnx,flush-fsync = <1>;
-		xlnx,num-fstores = <1>;
-		xlnx,addrwidth = <0x20>;
-		#dma-cells = <1>;
-		clock-names = "s_axi_lite_aclk", "m_axi_mm2s_aclk", "m_axi_mm2s_aclk", "m_axi_s2mm_aclk", "m_axi_s2mm_aclk";
-		clocks = <&axi_lite_clk>, <&axi_stream_clk>, <&axi_stream_clk>, <&axi_stream_clk>, <&axi_stream_clk>;
-
-		dma-s2mmchannel@80140030 {
-			compatible = "xlnx,axi-vdma-s2mm-channel";
-			interrupt-parent = <&gic>;
-			interrupts = <0 89 4>;
-			xlnx,datawidth = <0x40>;
-		};
+		xlnx,dma-addr-width = <32>;
+		xlnx,vid-formats = "yuyv";
 	};
 
-	//TDnext_capture_1_tc_v_cfa_0: cfa@80110000 {
-	//	compatible = "xlnx,v-cfa-7.0";
+
 	TDnext_capture_1_tc_v_cfa_0: v_cfa@80110000 {
 		compatible = "xlnx,v-cfa-7.0";
 		reg = <0x0 0x80110000 0x0 0x10000>;
@@ -92,8 +83,6 @@
 		};
 	};
 
-	//TDnext_capture_1_tc_v_rgb2yuv_0: rgb2yuv@80120000 {
-		//compatible = "xlnx,v-rgb2yuv-7.1";
 	TDnext_capture_1_tc_v_rgb2ycrcb_0: v_rgb2ycrcb@80120000 {
 		compatible = "xlnx,v-rgb2ycrcb-7.1";
 		reg = <0x0 0x80120000 0x0 0x10000>;
@@ -124,7 +113,6 @@
 		};
 	};
 
-	//TDnext_capture_1_tc_cresample_0: cresample@80130000 {
 	TDnext_capture_1_tc_v_cresample_0: v_cresample@80130000 {
 		compatible = "xlnx,v-cresample-4.0";
 		reg = <0x0 0x80130000 0x0 0x10000>;
@@ -157,7 +145,7 @@
 
 	cam1_video_cap_1 {
 		compatible = "xlnx,video";
-		dmas = <&TDnext_capture_1_tc_vdma_0 0>;
+		dmas = <&TDnext_capture_1_tc_frmbuf_wr_0 0>;
 		dma-names = "port0";
 
 		ports {
