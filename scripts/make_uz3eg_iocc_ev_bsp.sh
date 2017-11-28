@@ -174,6 +174,8 @@ petalinux_project_configure_kernel ()
     echo " "
     cp -rf ${START_FOLDER}/${PETALINUX_CONFIGS_FOLDER}/kernel/idt5901-2017.1-v1.0.patch \
     ${START_FOLDER}/${PETALINUX_PROJECTS_FOLDER}/${PETALINUX_PROJECT_NAME}/project-spec/meta-user/recipes-kernel/linux/linux-xlnx/.
+    cp -rf ${START_FOLDER}/${PETALINUX_CONFIGS_FOLDER}/kernel/spidev-2017.2-v1.0.patch \
+    ${START_FOLDER}/${PETALINUX_PROJECTS_FOLDER}/${PETALINUX_PROJECT_NAME}/project-spec/meta-user/recipes-kernel/linux/linux-xlnx/.
     cp -rf ${START_FOLDER}/${PETALINUX_CONFIGS_FOLDER}/kernel/mt9m114-2017.2-v1.0.patch \
     ${START_FOLDER}/${PETALINUX_PROJECTS_FOLDER}/${PETALINUX_PROJECT_NAME}/project-spec/meta-user/recipes-kernel/linux/linux-xlnx/.
     cp -rf ${START_FOLDER}/${PETALINUX_CONFIGS_FOLDER}/kernel/xilinx-drm-2017.2-v1.0.patch \
@@ -188,6 +190,7 @@ petalinux_project_configure_kernel ()
       echo "" >> ${START_FOLDER}/${PETALINUX_PROJECTS_FOLDER}/${PETALINUX_PROJECT_NAME}/project-spec/meta-user/recipes-kernel/linux/linux-xlnx_%.bbappend
       echo "SRC_URI_append = \" \                  " >> ${START_FOLDER}/${PETALINUX_PROJECTS_FOLDER}/${PETALINUX_PROJECT_NAME}/project-spec/meta-user/recipes-kernel/linux/linux-xlnx_%.bbappend
       echo "	file://idt5901-2017.1-v1.0.patch \ " >> ${START_FOLDER}/${PETALINUX_PROJECTS_FOLDER}/${PETALINUX_PROJECT_NAME}/project-spec/meta-user/recipes-kernel/linux/linux-xlnx_%.bbappend
+      echo "	file://spidev-2017.2-v1.0.patch \ " >> ${START_FOLDER}/${PETALINUX_PROJECTS_FOLDER}/${PETALINUX_PROJECT_NAME}/project-spec/meta-user/recipes-kernel/linux/linux-xlnx_%.bbappend
       echo "	file://mt9m114-2017.2-v1.0.patch \ " >> ${START_FOLDER}/${PETALINUX_PROJECTS_FOLDER}/${PETALINUX_PROJECT_NAME}/project-spec/meta-user/recipes-kernel/linux/linux-xlnx_%.bbappend
       echo "	file://xilinx-drm-2017.2-v1.0.patch \ " >> ${START_FOLDER}/${PETALINUX_PROJECTS_FOLDER}/${PETALINUX_PROJECT_NAME}/project-spec/meta-user/recipes-kernel/linux/linux-xlnx_%.bbappend
       echo "\"                                     " >> ${START_FOLDER}/${PETALINUX_PROJECTS_FOLDER}/${PETALINUX_PROJECT_NAME}/project-spec/meta-user/recipes-kernel/linux/linux-xlnx_%.bbappend

@@ -1,0 +1,11 @@
+diff -urN a/drivers/spi/spidev.c b/drivers/spi/spidev.c
+--- a/drivers/spi/spidev.c	2017-10-04 15:49:11.555741000 -0400
++++ b/drivers/spi/spidev.c	2017-10-20 15:24:03.423305741 -0400
+@@ -696,6 +696,7 @@
+ static const struct of_device_id spidev_dt_ids[] = {
+ 	{ .compatible = "rohm,dh2228fv" },
+ 	{ .compatible = "lineartechnology,ltc2488" },
++	{ .compatible = "spidev" },
+ 	{},
+ };
+ MODULE_DEVICE_TABLE(of, spidev_dt_ids);
